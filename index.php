@@ -1,9 +1,10 @@
 <?php
+// PROTEKSI HALAMAN - wajib di bagian paling atas
+require_once 'auth.php';
 require_once 'koneksi.php';
 
 $pdo = getConnection();
 
-// Tangani pesan sukses/error dari redirect
 $pesan = '';
 $tipePesan = '';
 if (isset($_GET['pesan'])) {
@@ -11,13 +12,11 @@ if (isset($_GET['pesan'])) {
     $tipePesan = $_GET['tipe'] ?? 'success';
 }
 
-// Ambil semua data barang
 $stmt = $pdo->query("SELECT * FROM barang ORDER BY created_at DESC");
 $barangs = $stmt->fetchAll();
 
-// Statistik
 $stmtStats = $pdo->query("
-    SELECT 
+    SELECT
         COUNT(*) as total_barang,
         SUM(jumlah) as total_stok,
         SUM(jumlah * harga) as total_nilai,
@@ -33,6 +32,33 @@ $stats = $stmtStats->fetch();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inventaris — Daftar Barang</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        .user-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--lavender-soft);
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-mid);
+        }
+        .user-avatar {
+            width: 28px; height: 28px;
+            background: linear-gradient(135deg, var(--lavender), var(--pink));
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px;
+            color: white;
+            font-weight: 700;
+        }
+    </style>
 </head>
 <body>
 
@@ -45,26 +71,33 @@ $stats = $stmtStats->fetch();
             <small>Sistem Manajemen Inventaris</small>
         </div>
     </a>
-    <ul class="navbar-nav">
-        <li><a href="index.php" class="active">🏠 Dashboard</a></li>
-        <li><a href="tambah.php">➕ Tambah Barang</a></li>
-    </ul>
+    <div style="display:flex;align-items:center;gap:12px;">
+        <ul class="navbar-nav">
+            <li><a href="index.php" class="active">🏠 Dashboard</a></li>
+            <li><a href="tambah.php">➕ Tambah Barang</a></li>
+        </ul>
+        <div class="user-badge">
+            <div class="user-info">
+                <div class="user-avatar"><?= strtoupper(substr($_SESSION['username'], 0, 1)) ?></div>
+                <?= htmlspecialchars($_SESSION['username']) ?>
+            </div>
+            <a href="logout.php" class="btn btn-danger" style="padding:6px 14px;font-size:0.85rem;">
+                🚪 Logout
+            </a>
+        </div>
+    </div>
 </nav>
 
 <div class="page-wrapper">
 
-    <!-- HEADER -->
     <div class="page-header">
         <div>
             <h1 class="page-title">Daftar Barang</h1>
-            <p class="page-subtitle">Kelola stok inventaris dengan mudah dan terorganisir</p>
+            <p class="page-subtitle">Selamat datang, <strong><?= htmlspecialchars($_SESSION['username']) ?></strong>! Kelola stok inventaris dengan mudah.</p>
         </div>
-        <a href="tambah.php" class="btn btn-primary">
-            ✨ Tambah Barang Baru
-        </a>
+        <a href="tambah.php" class="btn btn-primary">✨ Tambah Barang Baru</a>
     </div>
 
-    <!-- ALERT -->
     <?php if ($pesan): ?>
     <div class="alert alert-<?= $tipePesan === 'success' ? 'success' : 'error' ?>">
         <?= $tipePesan === 'success' ? '✅' : '❌' ?>
@@ -72,7 +105,6 @@ $stats = $stmtStats->fetch();
     </div>
     <?php endif; ?>
 
-    <!-- STATS -->
     <div class="stats-grid">
         <div class="stat-card">
             <div class="stat-icon lavender">🗂️</div>
@@ -104,7 +136,6 @@ $stats = $stmtStats->fetch();
         </div>
     </div>
 
-    <!-- TABLE CARD -->
     <div class="card">
         <div class="card-header">
             <div class="card-title">
@@ -135,7 +166,7 @@ $stats = $stmtStats->fetch();
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($barangs as $i => $b): ?>
+                        <?php foreach ($barangs as $b): ?>
                         <tr>
                             <td class="td-id"><?= str_pad($b['id'], 3, '0', STR_PAD_LEFT) ?></td>
                             <td>
@@ -144,26 +175,15 @@ $stats = $stmtStats->fetch();
                                 <div style="font-size:0.78rem;color:var(--text-light);margin-top:2px;"><?= htmlspecialchars(mb_strimwidth($b['deskripsi'], 0, 40, '…')) ?></div>
                                 <?php endif; ?>
                             </td>
-                            <td>
-                                <strong><?= number_format($b['jumlah']) ?></strong>
-                                <span style="font-size:0.78rem;color:var(--text-light);"> unit</span>
-                            </td>
-                            <td class="price-cell">
-                                <?= formatRupiah((float)$b['harga']) ?>
-                            </td>
+                            <td><strong><?= number_format($b['jumlah']) ?></strong> <span style="font-size:0.78rem;color:var(--text-light);">unit</span></td>
+                            <td class="price-cell"><?= formatRupiah((float)$b['harga']) ?></td>
                             <td><?= badgeStok((int)$b['jumlah']) ?></td>
-                            <td>
-                                <span class="date-chip">
-                                    📅 <?= formatTanggal($b['tanggal_masuk']) ?>
-                                </span>
-                            </td>
+                            <td><span class="date-chip">📅 <?= formatTanggal($b['tanggal_masuk']) ?></span></td>
                             <td>
                                 <div class="actions">
                                     <a href="edit.php?id=<?= $b['id'] ?>" class="btn-icon btn-edit" title="Edit">✏️</a>
                                     <button class="btn-icon btn-delete" title="Hapus"
-                                        onclick="confirmDelete(<?= $b['id'] ?>, '<?= htmlspecialchars($b['nama_barang'], ENT_QUOTES) ?>')">
-                                        🗑️
-                                    </button>
+                                        onclick="confirmDelete(<?= $b['id'] ?>, '<?= htmlspecialchars($b['nama_barang'], ENT_QUOTES) ?>')">🗑️</button>
                                 </div>
                             </td>
                         </tr>
@@ -177,14 +197,12 @@ $stats = $stmtStats->fetch();
 
 </div>
 
-<!-- MODAL KONFIRMASI HAPUS -->
+<!-- MODAL HAPUS -->
 <div class="modal-backdrop" id="deleteModal">
     <div class="modal-box">
         <div class="modal-icon">🗑️</div>
         <div class="modal-title">Hapus Barang?</div>
-        <div class="modal-body" id="deleteModalBody">
-            Barang ini akan dihapus secara permanen dan tidak dapat dikembalikan.
-        </div>
+        <div class="modal-body" id="deleteModalBody">Barang ini akan dihapus secara permanen.</div>
         <div class="modal-actions">
             <button class="btn btn-secondary" onclick="closeModal()">Batal</button>
             <a href="#" class="btn btn-danger" id="deleteConfirmBtn">Ya, Hapus</a>
@@ -192,15 +210,13 @@ $stats = $stmtStats->fetch();
     </div>
 </div>
 
-<!-- FOOTER -->
 <footer class="footer">
     <p>InvenTrack · Sistem Manajemen Inventaris · Dibangun dengan PHP & PDO</p>
 </footer>
 
 <script>
 function confirmDelete(id, nama) {
-    document.getElementById('deleteModalBody').textContent = 
-        `Anda akan menghapus "${nama}". Tindakan ini tidak dapat dibatalkan.`;
+    document.getElementById('deleteModalBody').textContent = `Anda akan menghapus "${nama}". Tindakan ini tidak dapat dibatalkan.`;
     document.getElementById('deleteConfirmBtn').href = `hapus.php?id=${id}`;
     document.getElementById('deleteModal').classList.add('show');
 }
