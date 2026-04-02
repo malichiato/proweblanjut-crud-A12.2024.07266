@@ -21,7 +21,13 @@ if (ini_get('session.use_cookies')) {
     );
 }
 
-// 3. Hancurkan sesi sepenuhnya
+// 3. Hapus cookie Remember Me
+if (isset($_COOKIE['remember_user'])) {
+    setcookie('remember_user', '', time() - 3600, '/');
+    unset($_COOKIE['remember_user']);
+}
+
+// 4. Hancurkan sesi sepenuhnya
 session_destroy();
 
 // 4. Redirect ke halaman login
