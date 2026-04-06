@@ -1,17 +1,14 @@
 <?php
-// logout.php - Proses Logout & Hancurkan Sesi
+// logout.php - Proses Logout
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Simpan username untuk pesan perpisahan
-$username = $_SESSION['username'] ?? 'Pengguna';
-
 // 1. Hapus semua variabel sesi
 $_SESSION = [];
 
-// 2. Hapus cookie sesi (jika ada)
+// 2. Hapus cookie sesi PHP
 if (ini_get('session.use_cookies')) {
     $params = session_get_cookie_params();
     setcookie(
@@ -21,15 +18,15 @@ if (ini_get('session.use_cookies')) {
     );
 }
 
-// 3. Hapus cookie Remember Me
+// 3. Hapus cookie remember me
 if (isset($_COOKIE['remember_user'])) {
     setcookie('remember_user', '', time() - 3600, '/');
     unset($_COOKIE['remember_user']);
 }
 
-// 4. Hancurkan sesi sepenuhnya
+// 4. Hancurkan sesi
 session_destroy();
 
-// 4. Redirect ke halaman login
-header('Location: login.php?pesan=' . urlencode('Anda telah berhasil logout. Sampai jumpa, ' . $username . '!'));
+// 5. Redirect ke login
+header('Location: login.php');
 exit;
