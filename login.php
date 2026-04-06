@@ -1,5 +1,5 @@
 <?php
-// login.php - Halaman & Proses Login + Remember Me
+// login.php - Halaman & Proses Login + Remember Me (auto-fill username saja)
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -13,23 +13,8 @@ if (isset($_SESSION['username'])) {
 
 require_once 'koneksi.php';
 
-$error  = '';
-$pesan  = '';
-
-// Cek cookie Remember Me - auto login
-if (!isset($_SESSION['username']) && isset($_COOKIE['remember_user'])) {
-    $pdo  = getConnection();
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE username = :username LIMIT 1");
-    $stmt->execute([':username' => $_COOKIE['remember_user']]);
-    $user = $stmt->fetch();
-    if ($user) {
-        $_SESSION['user_id']  = $user['id'];
-        $_SESSION['username'] = $user['username'];
-        $_SESSION['login_at'] = date('Y-m-d H:i:s');
-        header('Location: index.php?pesan=' . urlencode('Selamat datang kembali, ' . $user['username'] . '!') . '&tipe=success');
-        exit;
-    }
-}
+$error = '';
+$pesan = '';
 
 // Pesan dari redirect
 if (isset($_GET['pesan'])) {
@@ -56,16 +41,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['username'] = $user['username'];
             $_SESSION['login_at'] = date('Y-m-d H:i:s');
 
-            // Kalau centang Remember Me - simpan cookie 30 hari
+            // Remember Me — hanya simpan username di cookie untuk auto-fill
             if ($rememberMe) {
-                $expiry = time() + (30 * 24 * 60 * 60);
+                $expiry = time() + (30 * 24 * 60 * 60); // 30 hari
                 setcookie('remember_user', $user['username'], $expiry, '/', '', false, true);
+            } else {
+                // Hapus cookie jika tidak centang
+                setcookie('remember_user', '', time() - 3600, '/');
             }
 
-            header('Location: index.php?pesan=' . urlencode('Selamat datang, ' . $user['username'] . '!') . '&tipe=success');
+            header('Location: index.php');
             exit;
         } else {
             $error = 'Username atau password salah. Silakan coba lagi.';
+            // Hapus cookie jika login gagal
             if (isset($_COOKIE['remember_user'])) {
                 setcookie('remember_user', '', time() - 3600, '/');
             }
@@ -73,6 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// Auto-fill username dari cookie (hanya isi form, tidak auto-login)
 $savedUsername = $_COOKIE['remember_user'] ?? '';
 ?>
 <!DOCTYPE html>
@@ -116,17 +106,21 @@ $savedUsername = $_COOKIE['remember_user'] ?? '';
         }
         .login-logo h1 { font-size: 1.6rem; font-weight: 800; color: var(--text-dark); margin-bottom: 4px; }
         .login-logo p  { font-size: 0.85rem; color: var(--text-light); }
-        .remember-row  { display: flex; align-items: center; justify-content: space-between; margin-top: 0.5rem; }
+        .remember-row  { display: flex; align-items: center; margin-top: 0.5rem; }
         .remember-label {
             display: flex; align-items: center; gap: 8px;
             cursor: pointer; font-size: 0.88rem; color: var(--text-mid);
             font-weight: 500; user-select: none;
         }
-        .remember-label input[type="checkbox"] { width: 16px; height: 16px; accent-color: #6B52A8; cursor: pointer; }
+        .remember-label input[type="checkbox"] {
+            width: 16px; height: 16px;
+            accent-color: #6B52A8; cursor: pointer;
+        }
         .cookie-info {
-            background: var(--mint-soft); border-radius: var(--radius-sm);
-            padding: 8px 14px; font-size: 0.78rem; color: #3aaa6b;
-            margin-top: 8px; display: none;
+            background: var(--mint-soft);
+            border-radius: var(--radius-sm);
+            padding: 8px 14px; font-size: 0.78rem;
+            color: #3aaa6b; margin-top: 8px; display: none;
         }
         .cookie-info.show { display: block; }
     </style>
@@ -136,26 +130,35 @@ $savedUsername = $_COOKIE['remember_user'] ?? '';
 <div class="login-wrapper">
     <div class="login-card">
 
+        <!-- LOGO -->
         <div class="login-logo">
             <div class="login-logo-icon">📦</div>
             <h1>InvenTrack</h1>
             <p>Sistem Manajemen Inventaris</p>
         </div>
 
+        <!-- PESAN REDIRECT -->
         <?php if ($pesan): ?>
-        <div class="alert alert-error" style="margin-bottom:1.2rem;">🔒 <?= $pesan ?></div>
-        <?php endif; ?>
-
-        <?php if ($error): ?>
-        <div class="alert alert-error" style="margin-bottom:1.2rem;">❌ <?= htmlspecialchars($error) ?></div>
-        <?php endif; ?>
-
-        <?php if ($savedUsername): ?>
-        <div class="alert alert-success" style="margin-bottom:1.2rem;">
-            🍪 Sesi tersimpan untuk: <strong><?= htmlspecialchars($savedUsername) ?></strong>
+        <div class="alert alert-error" style="margin-bottom:1.2rem;">
+            🔒 <?= $pesan ?>
         </div>
         <?php endif; ?>
 
+        <!-- ERROR LOGIN -->
+        <?php if ($error): ?>
+        <div class="alert alert-error" style="margin-bottom:1.2rem;">
+            ❌ <?= htmlspecialchars($error) ?>
+        </div>
+        <?php endif; ?>
+
+        <!-- INFO USERNAME TERSIMPAN -->
+        <?php if ($savedUsername && !$error && !$pesan): ?>
+        <div class="alert alert-success" style="margin-bottom:1.2rem;">
+            👋 Halo lagi, <strong><?= htmlspecialchars($savedUsername) ?></strong>! Silakan masukkan password.
+        </div>
+        <?php endif; ?>
+
+        <!-- FORM LOGIN -->
         <form method="POST" action="login.php">
             <div class="form-grid">
 
@@ -182,15 +185,16 @@ $savedUsername = $_COOKIE['remember_user'] ?? '';
                     </div>
                 </div>
 
+                <!-- REMEMBER ME -->
                 <div class="remember-row">
                     <label class="remember-label">
                         <input type="checkbox" name="remember_me" id="remember_me"
                             <?= $savedUsername ? 'checked' : '' ?>>
-                        Ingat saya selama 30 hari
+                        Ingat username saya
                     </label>
                 </div>
                 <div class="cookie-info" id="cookieInfo">
-                    🍪 Browser akan menyimpan cookie login selama 30 hari
+                    🍪 Username akan diingat selama 30 hari.
                 </div>
 
             </div>
@@ -200,6 +204,7 @@ $savedUsername = $_COOKIE['remember_user'] ?? '';
             </button>
         </form>
 
+        <!-- LINK KE REGISTRASI -->
         <div style="text-align:center;margin-top:1.5rem;font-size:0.88rem;color:var(--text-light);">
             Belum punya akun?
             <a href="registrasi.php" style="color:#6B52A8;font-weight:700;text-decoration:none;">Daftar di sini</a>
@@ -209,12 +214,20 @@ $savedUsername = $_COOKIE['remember_user'] ?? '';
 </div>
 
 <script>
+// Toggle show/hide password
 function togglePassword() {
     const input = document.getElementById('password');
     const btn   = document.getElementById('toggleBtn');
-    if (input.type === 'password') { input.type = 'text'; btn.textContent = '🙈'; }
-    else { input.type = 'password'; btn.textContent = '👁️'; }
+    if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = '🙈';
+    } else {
+        input.type = 'password';
+        btn.textContent = '👁️';
+    }
 }
+
+// Tampilkan info cookie saat checkbox dicentang
 const checkbox   = document.getElementById('remember_me');
 const cookieInfo = document.getElementById('cookieInfo');
 checkbox.addEventListener('change', function() {
