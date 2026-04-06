@@ -229,4 +229,4 @@ document.getElementById('deleteModal').addEventListener('click', function(e) {
 </script>
 
 </body>
-</html>
+</html
