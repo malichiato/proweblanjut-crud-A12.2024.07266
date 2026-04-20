@@ -10,6 +10,7 @@ if ($id <= 0) {
     exit;
 }
 
+// Prepared statement untuk SELECT
 $stmt = $pdo->prepare("SELECT * FROM barang WHERE id = :id");
 $stmt->execute([':id' => $id]);
 $barang = $stmt->fetch();
@@ -29,21 +30,92 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $input['tanggal_masuk'] = trim($_POST['tanggal_masuk'] ?? '');
     $input['deskripsi']     = trim($_POST['deskripsi']     ?? '');
 
-    if (empty($input['nama_barang']))                                  $errors[] = 'Nama barang wajib diisi.';
-    if (!is_numeric($input['jumlah']) || (int)$input['jumlah'] < 0)   $errors[] = 'Jumlah harus berupa angka positif.';
-    if (!is_numeric($input['harga'])  || (float)$input['harga'] < 0)  $errors[] = 'Harga harus berupa angka positif.';
-    if (empty($input['tanggal_masuk']))                                $errors[] = 'Tanggal masuk wajib diisi.';
+    // ── VALIDASI SERVER-SIDE ──
+    if (empty($input['nama_barang']))
+        $errors[] = 'Nama barang wajib diisi.';
+    elseif (strlen($input['nama_barang']) > 150)
+        $errors[] = 'Nama barang maksimal 150 karakter.';
 
+    if (!is_numeric($input['jumlah']) || (int)$input['jumlah'] < 0)
+        $errors[] = 'Jumlah harus berupa angka positif.';
+
+    if (!is_numeric($input['harga']) || (float)$input['harga'] < 0)
+        $errors[] = 'Harga harus berupa angka positif.';
+
+    if (empty($input['tanggal_masuk']))
+        $errors[] = 'Tanggal masuk wajib diisi.';
+
+    // ── VALIDASI & PROSES UPLOAD GAMBAR ──
+    $namaGambarBaru = $barang['gambar']; // default pakai gambar lama
+
+    if (isset($_FILES['gambar']) && $_FILES['gambar']['error'] !== UPLOAD_ERR_NO_FILE) {
+        $file        = $_FILES['gambar'];
+        $maxSize     = 2 * 1024 * 1024;
+        $allowedExt  = ['jpg', 'jpeg', 'png', 'webp'];
+        $allowedMime = ['image/jpeg', 'image/png', 'image/webp'];
+
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            $errors[] = 'Terjadi error saat mengunggah file.';
+        } elseif ($file['size'] > $maxSize) {
+            $errors[] = 'Ukuran gambar maksimal 2MB.';
+        } else {
+            $ext  = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            $mime = mime_content_type($file['tmp_name']);
+
+            if (!in_array($ext, $allowedExt) || !in_array($mime, $allowedMime)) {
+                $errors[] = 'Format gambar harus JPG, PNG, atau WEBP.';
+            } else {
+                $namaGambarBaru = uniqid('barang_', true) . '.' . $ext;
+                $uploadDir      = __DIR__ . '/uploads/';
+
+                if (!is_dir($uploadDir)) {
+                    mkdir($uploadDir, 0755, true);
+                }
+
+                if (move_uploaded_file($file['tmp_name'], $uploadDir . $namaGambarBaru)) {
+                    // Hapus gambar lama jika ada
+                    if ($barang['gambar'] && file_exists($uploadDir . $barang['gambar'])) {
+                        unlink($uploadDir . $barang['gambar']);
+                    }
+                } else {
+                    $errors[] = 'Gagal menyimpan gambar. Cek izin folder uploads/.';
+                    $namaGambarBaru = $barang['gambar'];
+                }
+            }
+        }
+    }
+
+    // Hapus gambar jika user centang hapus gambar
+    if (isset($_POST['hapus_gambar']) && $barang['gambar']) {
+        $uploadDir = __DIR__ . '/uploads/';
+        if (file_exists($uploadDir . $barang['gambar'])) {
+            unlink($uploadDir . $barang['gambar']);
+        }
+        $namaGambarBaru = null;
+    }
+
+    // ── UPDATE DATABASE ──
     if (empty($errors)) {
-        $stmt = $pdo->prepare("UPDATE barang SET nama_barang=:nm, jumlah=:jml, harga=:hrg, tanggal_masuk=:tgl, deskripsi=:desk WHERE id=:id");
+        $stmt = $pdo->prepare("
+            UPDATE barang
+            SET nama_barang   = :nm,
+                jumlah        = :jml,
+                harga         = :hrg,
+                tanggal_masuk = :tgl,
+                deskripsi     = :desk,
+                gambar        = :gambar
+            WHERE id = :id
+        ");
         $stmt->execute([
-            ':nm'   => $input['nama_barang'],
-            ':jml'  => (int)$input['jumlah'],
-            ':hrg'  => (float)$input['harga'],
-            ':tgl'  => $input['tanggal_masuk'],
-            ':desk' => $input['deskripsi'] ?: null,
-            ':id'   => $id,
+            ':nm'     => htmlspecialchars($input['nama_barang'], ENT_QUOTES, 'UTF-8'),
+            ':jml'    => (int)$input['jumlah'],
+            ':hrg'    => (float)$input['harga'],
+            ':tgl'    => $input['tanggal_masuk'],
+            ':desk'   => $input['deskripsi'] ? htmlspecialchars($input['deskripsi'], ENT_QUOTES, 'UTF-8') : null,
+            ':gambar' => $namaGambarBaru,
+            ':id'     => $id,
         ]);
+
         header('Location: index.php?pesan=' . urlencode('Data "' . $input['nama_barang'] . '" berhasil diperbarui!') . '&tipe=success');
         exit;
     }
@@ -56,6 +128,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inventaris — Edit Barang</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        .upload-area {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius-md);
+            padding: 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #fafaff;
+            position: relative;
+        }
+        .upload-area:hover { border-color: var(--lavender); background: var(--lavender-soft); }
+        .upload-area input[type="file"] {
+            position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+        }
+        .upload-icon { font-size: 2rem; margin-bottom: 8px; }
+        .upload-text { font-size: 0.88rem; color: var(--text-mid); font-weight: 500; }
+        .upload-hint { font-size: 0.78rem; color: var(--text-light); margin-top: 4px; }
+        .current-img { width: 100%; max-height: 180px; object-fit: contain; border-radius: var(--radius-sm); margin-bottom: 10px; }
+        .preview-img { width: 100%; max-height: 180px; object-fit: contain; border-radius: var(--radius-sm); margin-top: 10px; display: none; }
+        .hapus-gambar-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 0.85rem; color: var(--text-mid); }
+        .hapus-gambar-row input { accent-color: #c0436a; }
+    </style>
 </head>
 <body>
 
@@ -99,36 +194,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
         <?php endif; ?>
 
-        <form method="POST" action="edit.php?id=<?= $id ?>" novalidate>
+        <form method="POST" action="edit.php?id=<?= $id ?>" enctype="multipart/form-data" novalidate>
             <div class="form-grid">
+
                 <div class="form-group">
                     <label for="nama_barang">Nama Barang <span style="color:#f4b8c8">*</span></label>
-                    <input type="text" id="nama_barang" name="nama_barang" class="form-control"
-                        value="<?= htmlspecialchars($input['nama_barang']) ?>" required>
+                    <input type="text" id="nama_barang" name="nama_barang"
+                        class="form-control"
+                        value="<?= htmlspecialchars($input['nama_barang']) ?>"
+                        maxlength="150" required>
                 </div>
+
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
                     <div class="form-group">
                         <label for="jumlah">Jumlah (unit) <span style="color:#f4b8c8">*</span></label>
-                        <input type="number" id="jumlah" name="jumlah" class="form-control"
-                            min="0" value="<?= htmlspecialchars($input['jumlah']) ?>" required>
+                        <input type="number" id="jumlah" name="jumlah"
+                            class="form-control" min="0"
+                            value="<?= htmlspecialchars($input['jumlah']) ?>" required>
                     </div>
                     <div class="form-group">
                         <label for="harga">Harga Satuan (Rp) <span style="color:#f4b8c8">*</span></label>
-                        <input type="number" id="harga" name="harga" class="form-control"
-                            min="0" step="100" value="<?= htmlspecialchars($input['harga']) ?>" required>
+                        <input type="number" id="harga" name="harga"
+                            class="form-control" min="0" step="100"
+                            value="<?= htmlspecialchars($input['harga']) ?>" required>
                         <div class="form-hint" id="hargaPreview" style="margin-top:6px;font-weight:600;color:var(--text-mid);"></div>
                     </div>
                 </div>
+
                 <div class="form-group">
                     <label for="tanggal_masuk">Tanggal Masuk <span style="color:#f4b8c8">*</span></label>
-                    <input type="date" id="tanggal_masuk" name="tanggal_masuk" class="form-control"
+                    <input type="date" id="tanggal_masuk" name="tanggal_masuk"
+                        class="form-control"
                         value="<?= htmlspecialchars($input['tanggal_masuk']) ?>" required>
                 </div>
+
                 <div class="form-group">
                     <label for="deskripsi">Deskripsi <span style="color:var(--text-light);font-weight:400;">(opsional)</span></label>
                     <textarea id="deskripsi" name="deskripsi" class="form-control" rows="3"><?= htmlspecialchars($input['deskripsi'] ?? '') ?></textarea>
                 </div>
+
+                <!-- UPLOAD GAMBAR -->
+                <div class="form-group">
+                    <label>Gambar Barang <span style="color:var(--text-light);font-weight:400;">(opsional, maks 2MB)</span></label>
+
+                    <?php if ($barang['gambar'] && file_exists(__DIR__ . '/uploads/' . $barang['gambar'])): ?>
+                    <div style="margin-bottom:10px;">
+                        <p style="font-size:0.82rem;color:var(--text-light);margin-bottom:6px;">Gambar saat ini:</p>
+                        <img src="uploads/<?= htmlspecialchars($barang['gambar']) ?>"
+                            alt="Gambar barang" class="current-img">
+                        <label class="hapus-gambar-row">
+                            <input type="checkbox" name="hapus_gambar" value="1">
+                            Hapus gambar ini
+                        </label>
+                    </div>
+                    <?php endif; ?>
+
+                    <div class="upload-area" id="uploadArea">
+                        <input type="file" name="gambar" id="gambar" accept="image/jpeg,image/png,image/webp"
+                            onchange="previewImage(this)">
+                        <div class="upload-icon">🖼️</div>
+                        <div class="upload-text"><?= $barang['gambar'] ? 'Klik untuk ganti gambar' : 'Klik atau drag gambar ke sini' ?></div>
+                        <div class="upload-hint">Format: JPG, PNG, WEBP • Maks 2MB</div>
+                    </div>
+                    <img id="previewImg" class="preview-img" src="" alt="Preview">
+                </div>
+
             </div>
+
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary">💾 Simpan Perubahan</button>
                 <a href="index.php" class="btn btn-secondary">← Batal</a>
@@ -140,8 +272,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <footer class="footer"><p>InvenTrack · Sistem Manajemen Inventaris · Dibangun dengan PHP & PDO</p></footer>
 
 <script>
+function previewImage(input) {
+    const preview = document.getElementById('previewImg');
+    const area    = document.getElementById('uploadArea');
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            preview.src = e.target.result;
+            preview.style.display = 'block';
+            area.style.borderColor = 'var(--mint)';
+            area.style.background  = 'var(--mint-soft)';
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
 const hargaInput = document.getElementById('harga');
-const preview = document.getElementById('hargaPreview');
+const preview    = document.getElementById('hargaPreview');
 function updatePreview() {
     const val = parseFloat(hargaInput.value);
     preview.textContent = val > 0 ? '≈ Rp ' + val.toLocaleString('id-ID') : '';
