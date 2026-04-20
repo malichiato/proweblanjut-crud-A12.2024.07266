@@ -1,5 +1,4 @@
 <?php
-// PROTEKSI HALAMAN - wajib di bagian paling atas
 require_once 'auth.php';
 require_once 'koneksi.php';
 
@@ -8,13 +7,15 @@ $pdo = getConnection();
 $pesan = '';
 $tipePesan = '';
 if (isset($_GET['pesan'])) {
-    $pesan = $_GET['pesan'];
+    $pesan     = $_GET['pesan'];
     $tipePesan = $_GET['tipe'] ?? 'success';
 }
 
-$stmt = $pdo->query("SELECT * FROM barang ORDER BY created_at DESC");
+// Prepared statement untuk SELECT semua barang
+$stmt = $pdo->query("SELECT * FROM barang ORDER BY id ASC");
 $barangs = $stmt->fetchAll();
 
+// Statistik
 $stmtStats = $pdo->query("
     SELECT
         COUNT(*) as total_barang,
@@ -33,43 +34,38 @@ $stats = $stmtStats->fetch();
     <title>Inventaris — Daftar Barang</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        .user-badge {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
+        .user-badge { display: flex; align-items: center; gap: 10px; }
         .user-info {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: var(--lavender-soft);
-            padding: 6px 14px;
-            border-radius: 999px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: var(--text-mid);
+            display: flex; align-items: center; gap: 8px;
+            background: var(--lavender-soft); padding: 6px 14px;
+            border-radius: 999px; font-size: 0.85rem;
+            font-weight: 600; color: var(--text-mid);
         }
         .user-avatar {
             width: 28px; height: 28px;
             background: linear-gradient(135deg, var(--lavender), var(--pink));
-            border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 14px;
-            color: white;
-            font-weight: 700;
+            border-radius: 50%; display: flex; align-items: center;
+            justify-content: center; font-size: 14px; color: white; font-weight: 700;
+        }
+        .barang-img {
+            width: 48px; height: 48px; object-fit: cover;
+            border-radius: 8px; border: 1px solid var(--border);
+        }
+        .no-img {
+            width: 48px; height: 48px;
+            background: var(--lavender-soft);
+            border-radius: 8px; display: flex;
+            align-items: center; justify-content: center;
+            font-size: 20px; border: 1px solid var(--border);
         }
     </style>
 </head>
 <body>
 
-<!-- NAVBAR -->
 <nav class="navbar">
     <a href="index.php" class="navbar-brand">
         <div class="navbar-icon">📦</div>
-        <div>
-            <span>InvenTrack</span>
-            <small>Sistem Manajemen Inventaris</small>
-        </div>
+        <div><span>InvenTrack</span><small>Sistem Manajemen Inventaris</small></div>
     </a>
     <div style="display:flex;align-items:center;gap:12px;">
         <ul class="navbar-nav">
@@ -81,9 +77,7 @@ $stats = $stmtStats->fetch();
                 <div class="user-avatar"><?= strtoupper(substr($_SESSION['username'], 0, 1)) ?></div>
                 <?= htmlspecialchars($_SESSION['username']) ?>
             </div>
-            <a href="logout.php" class="btn btn-danger" style="padding:6px 14px;font-size:0.85rem;">
-                🚪 Logout
-            </a>
+            <a href="logout.php" class="btn btn-danger" style="padding:6px 14px;font-size:0.85rem;">🚪 Logout</a>
         </div>
     </div>
 </nav>
@@ -108,31 +102,19 @@ $stats = $stmtStats->fetch();
     <div class="stats-grid">
         <div class="stat-card">
             <div class="stat-icon lavender">🗂️</div>
-            <div>
-                <div class="stat-value"><?= number_format($stats['total_barang']) ?></div>
-                <div class="stat-label">Jenis Barang</div>
-            </div>
+            <div><div class="stat-value"><?= number_format($stats['total_barang']) ?></div><div class="stat-label">Jenis Barang</div></div>
         </div>
         <div class="stat-card">
             <div class="stat-icon mint">📦</div>
-            <div>
-                <div class="stat-value"><?= number_format($stats['total_stok']) ?></div>
-                <div class="stat-label">Total Stok</div>
-            </div>
+            <div><div class="stat-value"><?= number_format($stats['total_stok']) ?></div><div class="stat-label">Total Stok</div></div>
         </div>
         <div class="stat-card">
             <div class="stat-icon peach">💰</div>
-            <div>
-                <div class="stat-value"><?= $stats['total_nilai'] ? 'Rp ' . number_format($stats['total_nilai']/1000000, 1) . 'jt' : 'Rp 0' ?></div>
-                <div class="stat-label">Nilai Inventaris</div>
-            </div>
+            <div><div class="stat-value"><?= $stats['total_nilai'] ? 'Rp ' . number_format($stats['total_nilai']/1000000, 1) . 'jt' : 'Rp 0' ?></div><div class="stat-label">Nilai Inventaris</div></div>
         </div>
         <div class="stat-card">
             <div class="stat-icon pink">⚠️</div>
-            <div>
-                <div class="stat-value"><?= number_format($stats['stok_rendah']) ?></div>
-                <div class="stat-label">Stok Rendah</div>
-            </div>
+            <div><div class="stat-value"><?= number_format($stats['stok_rendah']) ?></div><div class="stat-label">Stok Rendah</div></div>
         </div>
     </div>
 
@@ -157,6 +139,7 @@ $stats = $stmtStats->fetch();
                     <thead>
                         <tr>
                             <th>#</th>
+                            <th>Gambar</th>
                             <th>Nama Barang</th>
                             <th>Jumlah</th>
                             <th>Harga Satuan</th>
@@ -169,6 +152,15 @@ $stats = $stmtStats->fetch();
                         <?php foreach ($barangs as $b): ?>
                         <tr>
                             <td class="td-id"><?= str_pad($b['id'], 3, '0', STR_PAD_LEFT) ?></td>
+                            <td>
+                                <?php if ($b['gambar'] && file_exists(__DIR__ . '/uploads/' . $b['gambar'])): ?>
+                                <img src="uploads/<?= htmlspecialchars($b['gambar']) ?>"
+                                    alt="<?= htmlspecialchars($b['nama_barang']) ?>"
+                                    class="barang-img">
+                                <?php else: ?>
+                                <div class="no-img">📦</div>
+                                <?php endif; ?>
+                            </td>
                             <td>
                                 <div class="td-name"><?= htmlspecialchars($b['nama_barang']) ?></div>
                                 <?php if ($b['deskripsi']): ?>
@@ -210,9 +202,7 @@ $stats = $stmtStats->fetch();
     </div>
 </div>
 
-<footer class="footer">
-    <p>InvenTrack · Sistem Manajemen Inventaris · Dibangun dengan PHP & PDO</p>
-</footer>
+<footer class="footer"><p>InvenTrack · Sistem Manajemen Inventaris · Dibangun dengan PHP & PDO</p></footer>
 
 <script>
 function confirmDelete(id, nama) {
@@ -227,6 +217,5 @@ document.getElementById('deleteModal').addEventListener('click', function(e) {
     if (e.target === this) closeModal();
 });
 </script>
-
 </body>
-</html
+</html>
