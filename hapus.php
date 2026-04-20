@@ -10,7 +10,8 @@ if ($id <= 0) {
     exit;
 }
 
-$stmt = $pdo->prepare("SELECT nama_barang FROM barang WHERE id = :id");
+// Prepared statement untuk SELECT
+$stmt = $pdo->prepare("SELECT nama_barang, gambar FROM barang WHERE id = :id");
 $stmt->execute([':id' => $id]);
 $barang = $stmt->fetch();
 
@@ -19,6 +20,15 @@ if (!$barang) {
     exit;
 }
 
+// Hapus file gambar jika ada
+if ($barang['gambar']) {
+    $filePath = __DIR__ . '/uploads/' . $barang['gambar'];
+    if (file_exists($filePath)) {
+        unlink($filePath);
+    }
+}
+
+// Prepared statement untuk DELETE
 $stmt = $pdo->prepare("DELETE FROM barang WHERE id = :id");
 $stmt->execute([':id' => $id]);
 
