@@ -14,7 +14,6 @@
     </style>
 </head>
 <body>
-
 <nav class="navbar">
     <a href="index.php?action=index" class="navbar-brand">
         <div class="navbar-icon">📦</div>
@@ -34,9 +33,7 @@
         </div>
     </div>
 </nav>
-
 <div class="page-wrapper">
-
     <div class="page-header">
         <div>
             <h1 class="page-title">Daftar Barang</h1>
@@ -44,13 +41,11 @@
         </div>
         <a href="index.php?action=create" class="btn btn-primary">✨ Tambah Barang Baru</a>
     </div>
-
     <?php if ($pesan): ?>
     <div class="alert alert-<?= $tipe === 'success' ? 'success' : 'error' ?>">
         <?= $tipe === 'success' ? '✅' : '❌' ?> <?= htmlspecialchars($pesan) ?>
     </div>
     <?php endif; ?>
-
     <!-- STATS -->
     <div class="stats-grid">
         <div class="stat-card">
@@ -70,7 +65,6 @@
             <div><div class="stat-value"><?= number_format($stats['stok_rendah']) ?></div><div class="stat-label">Stok Rendah</div></div>
         </div>
     </div>
-
     <!-- TABLE -->
     <div class="card">
         <div class="card-header">
@@ -104,7 +98,7 @@
                         <tr>
                             <td class="td-id"><?= str_pad($b['id'], 3, '0', STR_PAD_LEFT) ?></td>
                             <td>
-                                <?php if ($b['gambar'] && file_exists(__DIR__ . '/../../uploads/' . $b['gambar'])): ?>
+                                <?php if ($b['gambar'] && file_exists(__DIR__ . '/../../../uploads/' . $b['gambar'])): ?>
                                 <img src="../uploads/<?= htmlspecialchars($b['gambar']) ?>" alt="<?= htmlspecialchars($b['nama_barang']) ?>" class="barang-img">
                                 <?php else: ?>
                                 <div class="no-img">📦</div>
@@ -136,7 +130,6 @@
         </div>
     </div>
 </div>
-
 <!-- MODAL HAPUS -->
 <div class="modal-backdrop" id="deleteModal">
     <div class="modal-box">
@@ -149,9 +142,7 @@
         </div>
     </div>
 </div>
-
 <footer class="footer"><p>InvenTrack · MVC · Dibangun dengan PHP & PDO</p></footer>
-
 <script>
 function confirmDelete(id, nama) {
     document.getElementById('deleteModalBody').textContent = `Anda akan menghapus "${nama}".`;
